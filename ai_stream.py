@@ -2,7 +2,7 @@ import requests
 import json
 import time
 
-API_KEY = "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"  # ใส่คีย์คุณ
+API_KEY = "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"  # ใส่คีย์คุณ
 API_URL = "https://openrouter.ai/api/v1/chat/completions"
 
 def stream_ai_response(prompt):
