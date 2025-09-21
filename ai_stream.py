@@ -1,8 +1,17 @@
 import requests
 import json
 import time
+import os
+from dotenv import load_dotenv
 
-API_KEY = "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"
+# โหลด environment variables
+load_dotenv()
+
+# ดึง API key จาก environment variable
+API_KEY = os.getenv('OPENROUTER_API_KEY')
+if not API_KEY:
+    raise ValueError("OPENROUTER_API_KEY not found in environment variables")
+
 API_URL = "https://openrouter.ai/api/v1/chat/completions"
 
 def process_ai_response(prompt):
