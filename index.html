@@ -2,7 +2,7 @@
 <html lang="th">
   <head>
     <meta charset="UTF-8" />
-    <title>Browser STT Full Chunk (Auto Stop)</title>
+    <title>Browser STT & TTS Full Chunk (Auto Stop)</title>
     <style>
       body {
         margin: 0;
@@ -34,7 +34,7 @@
     </style>
   </head>
   <body>
-    <h2>🎤 Browser Speech-to-Text (Full Chunk, Auto Stop 2s)</h2>
+    <h2>🎤 Browser Speech-to-Text & Text-to-Speech</h2>
     <button id="start">Start</button>
     <div id="result"></div>
 
@@ -42,6 +42,7 @@
       const SpeechRecognition =
         window.SpeechRecognition || window.webkitSpeechRecognition;
       const recognition = new SpeechRecognition();
+      const synth = window.speechSynthesis;
 
       recognition.lang = "th-TH";
       recognition.continuous = true;
@@ -59,7 +60,7 @@
           event.results[event.results.length - 1][0].transcript;
         resultDiv.innerText = transcript;
 
-        // ส่งข้อความผ่าน WebSocket แทน fetch
+        // ส่งข้อความผ่าน WebSocket
         ws.send(
           JSON.stringify({
             type: "stt",
@@ -97,6 +98,12 @@
           resultDiv.innerText = "";
           recognition.start();
           startButton.style.backgroundColor = "#ff4444";
+        } else if (data.type === "output" && data.message) {
+          // ใช้ Web Speech API สำหรับ Text-to-Speech
+          const utterance = new SpeechSynthesisUtterance(data.message);
+          utterance.lang = "th-TH";
+          synth.speak(utterance);
+          resultDiv.innerText = data.message;
         }
       };
     </script>
