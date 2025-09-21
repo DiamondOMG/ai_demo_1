@@ -56,6 +56,13 @@
           event.results[event.results.length - 1][0].transcript;
         resultDiv.innerText = transcript;
 
+        // ✅ ส่งไป server ด้วย fetch
+        fetch("/log", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ message: transcript }),
+        });
+
         clearTimeout(silenceTimer);
         silenceTimer = setTimeout(() => {
           recognition.stop();
