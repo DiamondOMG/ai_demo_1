@@ -51,17 +51,21 @@
       const startButton = document.getElementById("start");
       let silenceTimer;
 
+      // WebSocket connection
+      const ws = new WebSocket("ws://localhost:8001");
+
       recognition.onresult = (event) => {
         const transcript =
           event.results[event.results.length - 1][0].transcript;
         resultDiv.innerText = transcript;
 
-        // ✅ ส่งไป server ด้วย fetch
-        fetch("/log", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ message: transcript }),
-        });
+        // ส่งข้อความผ่าน WebSocket แทน fetch
+        ws.send(
+          JSON.stringify({
+            type: "stt",
+            message: transcript,
+          })
+        );
 
         clearTimeout(silenceTimer);
         silenceTimer = setTimeout(() => {
@@ -86,11 +90,10 @@
         startButton.style.backgroundColor = "#ff4444";
       };
 
-      // WebSocket สำหรับรับ event จาก server
-      const ws = new WebSocket("ws://localhost:8001");
+      // รับ event จาก server
       ws.onmessage = (event) => {
-        if (event.data === "detected") {
-          // trigger speech to text
+        const data = JSON.parse(event.data);
+        if (data.type === "wakeword" && data.status === "detected") {
           resultDiv.innerText = "";
           recognition.start();
           startButton.style.backgroundColor = "#ff4444";
