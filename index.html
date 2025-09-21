@@ -85,6 +85,17 @@
         recognition.start();
         startButton.style.backgroundColor = "#ff4444";
       };
+
+      // WebSocket สำหรับรับ event จาก server
+      const ws = new WebSocket("ws://localhost:8001");
+      ws.onmessage = (event) => {
+        if (event.data === "detected") {
+          // trigger speech to text
+          resultDiv.innerText = "";
+          recognition.start();
+          startButton.style.backgroundColor = "#ff4444";
+        }
+      };
     </script>
   </body>
 </html>
