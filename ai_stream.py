@@ -14,7 +14,7 @@ if not API_KEY:
 
 API_URL = "https://openrouter.ai/api/v1/chat/completions"
 
-def process_ai_response(prompt):
+def process_ai_response(prompt, response_queue):
     headers = {
         "Authorization": f"Bearer {API_KEY}",
         "Content-Type": "application/json"
@@ -26,7 +26,12 @@ def process_ai_response(prompt):
         "stream": True,
     }
 
-    print(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] AI Response:")
+    # ส่งเวลาเริ่มต้น
+    response_queue.put({
+        "type": "start",
+        "timestamp": time.strftime('%Y-%m-%d %H:%M:%S')
+    })
+
     with requests.post(API_URL, headers=headers, json=data, stream=True) as r:
         for chunk in r.iter_content(chunk_size=1024):
             chunk = chunk.decode("utf-8")
@@ -42,13 +47,22 @@ def process_ai_response(prompt):
                 if line.startswith("data: "):
                     data_str = line[6:]
                     if data_str == "[DONE]":
-                        print(f"\n[{time.strftime('%Y-%m-%d %H:%M:%S')}] Done.")
+                        # ส่งสัญญาณว่าเสร็จสิ้น
+                        response_queue.put({
+                            "type": "done",
+                            "timestamp": time.strftime('%Y-%m-%d %H:%M:%S')
+                        })
                         return
 
                     try:
                         data_obj = json.loads(data_str)
                         content = data_obj["choices"][0]["delta"].get("content")
                         if content:
-                            print(content, end="", flush=True)  # Stream print
+                            # ส่งเนื้อหาผ่านคิว
+                            response_queue.put({
+                                "type": "content",
+                                "text": content,
+                                "timestamp": time.strftime('%Y-%m-%d %H:%M:%S')
+                            })
                     except json.JSONDecodeError:
                         pass

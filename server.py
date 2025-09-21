@@ -13,15 +13,29 @@ from ai_stream import process_ai_response
 PORT = 8000
 WS_PORT = 8001
 
-wakeword_queue = queue.Queue()
+
 ws_clients = set()
 ws_clients_lock = threading.Lock()
+
+# คิว
+ai_response_queue = queue.Queue()
+wakeword_queue = queue.Queue()
 
 def wakeword_listener():
     while True:
         event = wakeword_queue.get()
         if event == "detected":
             asyncio.run(send_ws_event("detected"))
+
+def ai_response_listener():
+    while True:
+        response = ai_response_queue.get()
+        if response["type"] == "start":
+            print(f"[{response['timestamp']}] AI Response:")
+        elif response["type"] == "content":
+            print(response["text"], end="", flush=True)
+        elif response["type"] == "done":
+            print(f"\n[{response['timestamp']}] Done.")
 
 async def ws_handler(websocket):
     with ws_clients_lock:
@@ -32,10 +46,10 @@ async def ws_handler(websocket):
             data = json.loads(message)
             if data.get("type") == "stt":
                 print(f"[Browser STT] {data['message']}")
-                # ส่งไปประมวลผล AI
+                # ส่งไปประมวลผล AI พร้อมคิว
                 threading.Thread(
                     target=process_ai_response,
-                    args=(data["message"],),
+                    args=(data["message"], ai_response_queue),
                     daemon=True
                 ).start()
     finally:
@@ -65,6 +79,7 @@ if __name__ == "__main__":
     threading.Thread(target=wake_word.start_listening, args=(wakeword_queue,), daemon=True).start()
     threading.Thread(target=wakeword_listener, daemon=True).start()
     threading.Thread(target=start_ws_server, daemon=True).start()
+    threading.Thread(target=ai_response_listener, daemon=True).start()
 
     os.chdir(os.path.dirname(os.path.abspath(__file__)))
     try:
