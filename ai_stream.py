@@ -1,3 +1,4 @@
+# ai_stream.py อย่าลบ
 import requests
 import json
 import time

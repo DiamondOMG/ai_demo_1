@@ -1,3 +1,4 @@
+# server.py
 import http.server
 import socketserver
 import webbrowser
@@ -13,6 +14,7 @@ from ai_stream import process_ai_response
 PORT = 8000
 WS_PORT = 8001
 
+
 ws_clients = set()
 ws_clients_lock = threading.Lock()
 
@@ -27,35 +29,14 @@ def wakeword_listener():
             asyncio.run(send_ws_event("detected"))
 
 def ai_response_listener():
-    accumulated_content = []
     while True:
         response = ai_response_queue.get()
         if response["type"] == "start":
             print(f"[{response['timestamp']}] AI Response:")
-            accumulated_content = []  # Reset content for new response
         elif response["type"] == "content":
             print(response["text"], end="", flush=True)
-            accumulated_content.append(response["text"])
         elif response["type"] == "done":
             print(f"\n[{response['timestamp']}] Done.")
-            # Send complete accumulated content through WebSocket
-            complete_message = "".join(accumulated_content)
-            if complete_message:
-                asyncio.run(send_ws_output(complete_message))
-
-async def send_ws_event(event):
-    if ws_clients:
-        await asyncio.gather(
-            *(ws.send(json.dumps({"type": "wakeword", "status": event}))
-            for ws in ws_clients)
-        )
-
-async def send_ws_output(message):
-    if ws_clients:
-        await asyncio.gather(
-            *(ws.send(json.dumps({"type": "output", "message": message}))
-            for ws in ws_clients)
-        )
 
 async def ws_handler(websocket):
     with ws_clients_lock:
@@ -75,6 +56,13 @@ async def ws_handler(websocket):
     finally:
         with ws_clients_lock:
             ws_clients.remove(websocket)
+
+async def send_ws_event(event):
+    if ws_clients:
+        await asyncio.gather(
+            *(ws.send(json.dumps({"type": "wakeword", "status": event})) 
+            for ws in ws_clients)
+        )
 
 def start_ws_server():
     loop = asyncio.new_event_loop()

@@ -1,3 +1,4 @@
+# wake_word.py อย่าลบ
 import pvporcupine
 import sounddevice as sd
 import numpy as np
