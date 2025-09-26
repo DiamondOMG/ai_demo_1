@@ -35,3 +35,11 @@ def start_listening(event_queue=None):
         print("🎤 Listening for wake word... (press Ctrl+C to stop)")
         while True:
             sd.sleep(1000)
+
+if __name__ == '__main__':
+    try:
+        start_listening()
+    except KeyboardInterrupt:
+        print("\nStopping wake word listener.")
+    finally:
+        porcupine.delete()
