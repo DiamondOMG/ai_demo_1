@@ -1,4 +1,5 @@
 {
     "model_1": "x-ai/grok-4-fast:free",
-    "model_2": ""
+    "model_2": "deepseek/deepseek-chat-v3.1:free",
+    "model_3": "openai/gpt-oss-20b:free"
 }

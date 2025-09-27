@@ -61,8 +61,7 @@
       #tts-button:hover {
         background-color: #1976d2;
       }
-      #result,
-      #tts-output {
+      #result, #tts-output {
         margin: 20px 0;
         font-size: 18px;
         text-align: center;
@@ -84,6 +83,18 @@
         border: 1px solid #ccc;
         border-radius: 5px;
       }
+      .slider-container {
+        width: 80%;
+        margin-bottom: 10px;
+      }
+      .slider-container label {
+        display: block;
+        font-size: 14px;
+        margin-bottom: 5px;
+      }
+      .slider-container input[type="range"] {
+        width: 100%;
+      }
     </style>
   </head>
   <body>
@@ -97,6 +108,14 @@
       <div class="panel tts-panel">
         <h3>Text-to-Speech</h3>
         <select id="voice-select"></select>
+        <div class="slider-container">
+          <label for="rate">ความเร็วเสียง: <span id="rate-value">1.0</span></label>
+          <input type="range" id="rate" min="0.5" max="2.0" step="0.1" value="1.0">
+        </div>
+        <div class="slider-container">
+          <label for="pitch">ระดับเสียง: <span id="pitch-value">1.0</span></label>
+          <input type="range" id="pitch" min="0.5" max="2.0" step="0.1" value="1.0">
+        </div>
         <input
           type="text"
           id="tts-input"
@@ -123,13 +142,23 @@
       const ttsButton = document.getElementById("tts-button");
       const ttsOutput = document.getElementById("tts-output");
       const voiceSelect = document.getElementById("voice-select");
+      const rateSlider = document.getElementById("rate");
+      const rateValue = document.getElementById("rate-value");
+      const pitchSlider = document.getElementById("pitch");
+      const pitchValue = document.getElementById("pitch-value");
       let silenceTimer;
+
+      // Update slider values display
+      rateSlider.oninput = () => {
+        rateValue.textContent = rateSlider.value;
+      };
+      pitchSlider.oninput = () => {
+        pitchValue.textContent = pitchSlider.value;
+      };
 
       // Populate voice options
       function populateVoices() {
-        const voices = synth
-          .getVoices()
-          .filter((voice) => voice.lang === "th-TH");
+        const voices = synth.getVoices().filter((voice) => voice.lang === "th-TH");
         voiceSelect.innerHTML = "";
         voices.forEach((voice, index) => {
           const option = document.createElement("option");
@@ -149,10 +178,9 @@
         const utterance = new SpeechSynthesisUtterance(inputText);
         utterance.lang = "th-TH";
         utterance.volume = 1.0;
-        utterance.rate = 1.0;
-        const voices = synth
-          .getVoices()
-          .filter((voice) => voice.lang === "th-TH");
+        utterance.rate = parseFloat(rateSlider.value);
+        utterance.pitch = parseFloat(pitchSlider.value);
+        const voices = synth.getVoices().filter((voice) => voice.lang === "th-TH");
         if (voices.length > 0) {
           utterance.voice = voices[voiceSelect.value || 0];
         }
