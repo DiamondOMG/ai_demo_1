@@ -9,7 +9,7 @@ import queue
 import asyncio
 import websockets
 from wake_word import start_listening
-from ai_stream import process_ai_response
+from ai import process_ai_response
 
 PORT = 8000
 WS_PORT = 8001

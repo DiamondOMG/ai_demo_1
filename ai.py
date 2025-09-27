@@ -15,6 +15,8 @@ if not API_KEY:
 
 API_URL = "https://openrouter.ai/api/v1/chat/completions"
 
+model = "x-ai/grok-4-fast:free"
+
 def process_ai_response(prompt):
     print("เริ่มส่งคำถาม:", time.strftime('%Y-%m-%d %H:%M:%S'))
     
@@ -24,7 +26,7 @@ def process_ai_response(prompt):
     }
 
     data = {
-        "model": "x-ai/grok-4-fast:free",
+        "model": model,
         "messages": [{"role": "user", "content": prompt}],
         "stream": False,
     }
@@ -53,3 +55,4 @@ if __name__ == "__main__":
         print(ai_response)
     except Exception as e:
         print(f"เกิดข้อผิดพลาด: {e}")
+        

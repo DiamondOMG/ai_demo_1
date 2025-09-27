@@ -2,41 +2,110 @@
 <html lang="th">
   <head>
     <meta charset="UTF-8" />
-    <title>Browser STT & TTS Full Chunk (Auto Stop)</title>
+    <title>Browser STT & TTS Split UI</title>
     <style>
       body {
         margin: 0;
+        font-family: Arial, sans-serif;
+        height: 100vh;
+        display: flex;
+        flex-direction: column;
+      }
+      .container {
+        display: flex;
+        flex: 1;
+        width: 100%;
+      }
+      .panel {
+        flex: 1;
+        padding: 20px;
+        box-sizing: border-box;
         display: flex;
         flex-direction: column;
         align-items: center;
         justify-content: center;
-        height: 100vh;
-        font-family: Arial, sans-serif;
       }
-      #start {
-        width: 100%;
-        height: 100vh;
-        font-size: 24px;
-        background-color: #4caf50;
-        color: white;
+      .stt-panel {
+        background-color: #f0f8ff;
+      }
+      .tts-panel {
+        background-color: #fff0f5;
+      }
+      h2 {
+        text-align: center;
+        margin: 10px 0;
+      }
+      button {
+        padding: 15px 30px;
+        font-size: 18px;
         border: none;
         cursor: pointer;
         transition: background-color 0.3s;
+        border-radius: 5px;
+      }
+      #start {
+        background-color: #4caf50;
+        color: white;
       }
       #start:hover {
         background-color: #45a049;
       }
-      #result {
-        margin-top: 20px;
+      #start.recording {
+        background-color: #ff4444;
+      }
+      #tts-button {
+        background-color: #2196f3;
+        color: white;
+        margin-top: 10px;
+      }
+      #tts-button:hover {
+        background-color: #1976d2;
+      }
+      #result,
+      #tts-output {
+        margin: 20px 0;
         font-size: 18px;
         text-align: center;
+        min-height: 50px;
+      }
+      #tts-input {
+        width: 80%;
+        padding: 10px;
+        font-size: 16px;
+        margin-bottom: 10px;
+        border: 1px solid #ccc;
+        border-radius: 5px;
+      }
+      #voice-select {
+        width: 80%;
+        padding: 10px;
+        font-size: 16px;
+        margin-bottom: 10px;
+        border: 1px solid #ccc;
+        border-radius: 5px;
       }
     </style>
   </head>
   <body>
     <h2>🎤 Browser Speech-to-Text & Text-to-Speech</h2>
-    <button id="start">Start</button>
-    <div id="result"></div>
+    <div class="container">
+      <div class="panel stt-panel">
+        <h3>Speech-to-Text</h3>
+        <button id="start">เริ่มบันทึก</button>
+        <div id="result"></div>
+      </div>
+      <div class="panel tts-panel">
+        <h3>Text-to-Speech</h3>
+        <select id="voice-select"></select>
+        <input
+          type="text"
+          id="tts-input"
+          placeholder="กรอกข้อความ (ค่าเริ่มต้น: สวัสดีครับ)"
+        />
+        <button id="tts-button">เล่นเสียง</button>
+        <div id="tts-output"></div>
+      </div>
+    </div>
 
     <script>
       const SpeechRecognition =
@@ -50,7 +119,46 @@
 
       const resultDiv = document.getElementById("result");
       const startButton = document.getElementById("start");
+      const ttsInput = document.getElementById("tts-input");
+      const ttsButton = document.getElementById("tts-button");
+      const ttsOutput = document.getElementById("tts-output");
+      const voiceSelect = document.getElementById("voice-select");
       let silenceTimer;
+
+      // Populate voice options
+      function populateVoices() {
+        const voices = synth
+          .getVoices()
+          .filter((voice) => voice.lang === "th-TH");
+        voiceSelect.innerHTML = "";
+        voices.forEach((voice, index) => {
+          const option = document.createElement("option");
+          option.value = index;
+          option.text = voice.name + (voice.default ? " (Default)" : "");
+          voiceSelect.appendChild(option);
+        });
+      }
+
+      // Load voices (may need delay for some browsers)
+      synth.onvoiceschanged = populateVoices;
+      populateVoices();
+
+      function ai_speak(text) {
+        const inputText = text || ttsInput.value || "สวัสดีครับ";
+        window.speechSynthesis.cancel();
+        const utterance = new SpeechSynthesisUtterance(inputText);
+        utterance.lang = "th-TH";
+        utterance.volume = 1.0;
+        utterance.rate = 1.0;
+        const voices = synth
+          .getVoices()
+          .filter((voice) => voice.lang === "th-TH");
+        if (voices.length > 0) {
+          utterance.voice = voices[voiceSelect.value || 0];
+        }
+        window.speechSynthesis.speak(utterance);
+        ttsOutput.innerText = inputText;
+      }
 
       // WebSocket connection
       const ws = new WebSocket("ws://localhost:8001");
@@ -60,7 +168,7 @@
           event.results[event.results.length - 1][0].transcript;
         resultDiv.innerText = transcript;
 
-        // ส่งข้อความผ่าน WebSocket
+        // Send message via WebSocket
         ws.send(
           JSON.stringify({
             type: "stt",
@@ -71,39 +179,39 @@
         clearTimeout(silenceTimer);
         silenceTimer = setTimeout(() => {
           recognition.stop();
-          startButton.style.backgroundColor = "#4CAF50";
+          startButton.classList.remove("recording");
         }, 2000);
       };
 
       recognition.onerror = (e) => {
         console.error("Error:", e.error);
-        startButton.style.backgroundColor = "#4CAF50";
+        startButton.classList.remove("recording");
       };
 
       recognition.onend = () => {
         console.log("Recognition stopped.");
-        startButton.style.backgroundColor = "#4CAF50";
+        startButton.classList.remove("recording");
       };
 
       startButton.onclick = () => {
         resultDiv.innerText = "";
         recognition.start();
-        startButton.style.backgroundColor = "#ff4444";
+        startButton.classList.add("recording");
       };
 
-      // รับ event จาก server
+      ttsButton.onclick = () => {
+        ai_speak();
+      };
+
+      // Handle WebSocket messages
       ws.onmessage = (event) => {
         const data = JSON.parse(event.data);
         if (data.type === "wakeword" && data.status === "detected") {
           resultDiv.innerText = "";
           recognition.start();
-          startButton.style.backgroundColor = "#ff4444";
+          startButton.classList.add("recording");
         } else if (data.type === "output" && data.message) {
-          // ใช้ Web Speech API สำหรับ Text-to-Speech
-          const utterance = new SpeechSynthesisUtterance(data.message);
-          utterance.lang = "th-TH";
-          synth.speak(utterance);
-          resultDiv.innerText = data.message;
+          ai_speak(data.message);
         }
       };
     </script>
