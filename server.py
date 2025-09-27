@@ -18,7 +18,6 @@ WS_PORT = 8001
 # Queue สำหรับสื่อสารกับ main thread
 wakeword_queue = queue.Queue()
 ws_to_main_queue = queue.Queue()
-main_to_ws_queue = queue.Queue()
 # ---------------------------
 
 # เก็บ client WebSocket
@@ -39,11 +38,7 @@ async def ws_handler(websocket):
         async for message in websocket:
             data = json.loads(message)
             # ส่งข้อความ STT ไป main thread
-            ws_to_main_queue.put(data)
-            # รอ response จาก main thread
-            if data.get("type") == "stt":
-                response = main_to_ws_queue.get()
-                await websocket.send(json.dumps({"type": "ai", "message": response}))
+            ws_to_main_queue.put((data, websocket))
     finally:
         with ws_clients_lock:
             ws_clients.remove(websocket)
@@ -60,23 +55,24 @@ def websocket_thread():
 # Main thread loop (blocking)
 def main_loop():
     while True:
-        # 1. รอ wake word หรือข้อความจาก WebSocket
+        # 1. ตรวจ wake word
         try:
-            # รอ event wake word (timeout=0.1 เพื่อสลับเช็ค WS)
             event = wakeword_queue.get(timeout=0.1)
             if event == "detected":
+                # ส่งไป WebSocket ทุก client
                 with ws_clients_lock:
                     for ws in ws_clients:
                         asyncio.run(ws.send(json.dumps({"type": "wakeword", "status": "detected"})))
         except queue.Empty:
             pass
 
+        # 2. ตรวจข้อความจาก WebSocket
         try:
-            data = ws_to_main_queue.get_nowait()
+            (data, websocket) = ws_to_main_queue.get_nowait()
             if data.get("type") == "stt":
                 ai_response = process_ai_response(data["message"])
-                print(ai_response)
-                main_to_ws_queue.put(ai_response)
+                # ส่งผล AI กลับ client เดียวกัน
+                asyncio.run(websocket.send(json.dumps({"type": "output", "message": ai_response})))
         except queue.Empty:
             pass
 
@@ -104,3 +100,4 @@ if __name__ == "__main__":
             httpd.serve_forever()
     except KeyboardInterrupt:
         print("\nShutting down server...")
+        os._exit(0)   # kill ทุก thread ทันที

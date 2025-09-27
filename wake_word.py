@@ -32,12 +32,12 @@ def start_listening(event_queue=None):
         samplerate=SAMPLE_RATE,
         blocksize=FRAME_LENGTH,
     ):
-        print("🎤 Listening for wake word... (press Ctrl+C to stop)")
         while True:
             sd.sleep(1000)
 
 if __name__ == '__main__':
     try:
+        print("🎤 Listening for wake word... (press Ctrl+C to stop)")
         start_listening()
     except KeyboardInterrupt:
         print("\nStopping wake word listener.")
