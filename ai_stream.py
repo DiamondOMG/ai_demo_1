@@ -15,55 +15,41 @@ if not API_KEY:
 
 API_URL = "https://openrouter.ai/api/v1/chat/completions"
 
-def process_ai_response(prompt, response_queue):
+def process_ai_response(prompt):
+    print("เริ่มส่งคำถาม:", time.strftime('%Y-%m-%d %H:%M:%S'))
+    
     headers = {
         "Authorization": f"Bearer {API_KEY}",
         "Content-Type": "application/json"
     }
 
     data = {
-        "model": "openai/gpt-oss-20b:free",
+        "model": "x-ai/grok-4-fast:free",
         "messages": [{"role": "user", "content": prompt}],
-        "stream": True,
+        "stream": False,
     }
 
-    # ส่งเวลาเริ่มต้น
-    response_queue.put({
-        "type": "start",
-        "timestamp": time.strftime('%Y-%m-%d %H:%M:%S')
-    })
+    response_text = ""
+    response = requests.post(API_URL, headers=headers, json=data)
+    response.raise_for_status()
 
-    with requests.post(API_URL, headers=headers, json=data, stream=True) as r:
-        for chunk in r.iter_content(chunk_size=1024):
-            chunk = chunk.decode("utf-8")
-            buffer = chunk
-            while True:
-                line_end = buffer.find("\n")
-                if line_end == -1:
-                    break
+    result = response.json()
+    if "choices" in result and len(result["choices"]) > 0:
+        response_text = result["choices"][0]["message"]["content"]
+    
+    print("AI ตอบเสร็จ:", time.strftime('%Y-%m-%d %H:%M:%S'))
+    return response_text
 
-                line = buffer[:line_end].strip()
-                buffer = buffer[line_end + 1:]
+if __name__ == "__main__":
+    # ทดสอบฟังก์ชัน
+    test_prompt = "อากาศที่ประเทศไทยกี่องศาครับ ตอบสั้นๆ"
+    print("ทดสอบ AI Response:")
+    print(f"Prompt: {test_prompt}")
+    print("-" * 50)
 
-                if line.startswith("data: "):
-                    data_str = line[6:]
-                    if data_str == "[DONE]":
-                        # ส่งสัญญาณว่าเสร็จสิ้น
-                        response_queue.put({
-                            "type": "done",
-                            "timestamp": time.strftime('%Y-%m-%d %H:%M:%S')
-                        })
-                        return
-
-                    try:
-                        data_obj = json.loads(data_str)
-                        content = data_obj["choices"][0]["delta"].get("content")
-                        if content:
-                            # ส่งเนื้อหาผ่านคิว
-                            response_queue.put({
-                                "type": "content",
-                                "text": content,
-                                "timestamp": time.strftime('%Y-%m-%d %H:%M:%S')
-                            })
-                    except json.JSONDecodeError:
-                        pass
+    try:
+        ai_response = process_ai_response(test_prompt)
+        print("AI Response:")
+        print(ai_response)
+    except Exception as e:
+        print(f"เกิดข้อผิดพลาด: {e}")

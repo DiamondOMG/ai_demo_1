@@ -8,80 +8,93 @@ import threading
 import queue
 import asyncio
 import websockets
-import wake_word
+from wake_word import start_listening
 from ai_stream import process_ai_response
 
 PORT = 8000
 WS_PORT = 8001
 
+# ---------------------------
+# Queue สำหรับสื่อสารกับ main thread
+wakeword_queue = queue.Queue()
+ws_to_main_queue = queue.Queue()
+main_to_ws_queue = queue.Queue()
+# ---------------------------
 
+# เก็บ client WebSocket
 ws_clients = set()
 ws_clients_lock = threading.Lock()
 
-# คิว
-ai_response_queue = queue.Queue()
-wakeword_queue = queue.Queue()
+# ---------------------------
+# Wake word thread
+def wakeword_thread():
+    start_listening(wakeword_queue)
 
-def wakeword_listener():
-    while True:
-        event = wakeword_queue.get()
-        if event == "detected":
-            asyncio.run(send_ws_event("detected"))
-
-def ai_response_listener():
-    while True:
-        response = ai_response_queue.get()
-        if response["type"] == "start":
-            print(f"[{response['timestamp']}] AI Response:")
-        elif response["type"] == "content":
-            print(response["text"], end="", flush=True)
-        elif response["type"] == "done":
-            print(f"\n[{response['timestamp']}] Done.")
-
+# ---------------------------
+# WebSocket thread
 async def ws_handler(websocket):
     with ws_clients_lock:
         ws_clients.add(websocket)
     try:
         async for message in websocket:
-            # รับข้อความ STT จาก browser
             data = json.loads(message)
+            # ส่งข้อความ STT ไป main thread
+            ws_to_main_queue.put(data)
+            # รอ response จาก main thread
             if data.get("type") == "stt":
-                print(f"[Browser STT] {data['message']}")
-                # ส่งไปประมวลผล AI พร้อมคิว
-                threading.Thread(
-                    target=process_ai_response,
-                    args=(data["message"], ai_response_queue),
-                    daemon=True
-                ).start()
+                response = main_to_ws_queue.get()
+                await websocket.send(json.dumps({"type": "ai", "message": response}))
     finally:
         with ws_clients_lock:
             ws_clients.remove(websocket)
 
-async def send_ws_event(event):
-    if ws_clients:
-        await asyncio.gather(
-            *(ws.send(json.dumps({"type": "wakeword", "status": event})) 
-            for ws in ws_clients)
-        )
-
-def start_ws_server():
+def websocket_thread():
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
     async def ws_main():
         async with websockets.serve(ws_handler, "0.0.0.0", WS_PORT):
-            await asyncio.Future()
+            await asyncio.Future()  # run forever
     loop.run_until_complete(ws_main())
 
+# ---------------------------
+# Main thread loop (blocking)
+def main_loop():
+    while True:
+        # 1. รอ wake word หรือข้อความจาก WebSocket
+        try:
+            # รอ event wake word (timeout=0.1 เพื่อสลับเช็ค WS)
+            event = wakeword_queue.get(timeout=0.1)
+            if event == "detected":
+                with ws_clients_lock:
+                    for ws in ws_clients:
+                        asyncio.run(ws.send(json.dumps({"type": "wakeword", "status": "detected"})))
+        except queue.Empty:
+            pass
+
+        try:
+            data = ws_to_main_queue.get_nowait()
+            if data.get("type") == "stt":
+                ai_response = process_ai_response(data["message"])
+                print(ai_response)
+                main_to_ws_queue.put(ai_response)
+        except queue.Empty:
+            pass
+
+# ---------------------------
+# HTTP server
 class StaticHandler(http.server.SimpleHTTPRequestHandler):
-    # เหลือแค่ serve static files
     pass
 
+# ---------------------------
 if __name__ == "__main__":
-    threading.Thread(target=wake_word.start_listening, args=(wakeword_queue,), daemon=True).start()
-    threading.Thread(target=wakeword_listener, daemon=True).start()
-    threading.Thread(target=start_ws_server, daemon=True).start()
-    threading.Thread(target=ai_response_listener, daemon=True).start()
+    # เริ่ม threads
+    threading.Thread(target=wakeword_thread, daemon=True).start()
+    threading.Thread(target=websocket_thread, daemon=True).start()
 
+    # เริ่ม main loop ใน thread หลัก
+    threading.Thread(target=main_loop, daemon=True).start()
+
+    # Serve static files
     os.chdir(os.path.dirname(os.path.abspath(__file__)))
     try:
         with socketserver.TCPServer(("", PORT), StaticHandler) as httpd:
